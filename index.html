@@ -3,38 +3,41 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Mi Inventario Pro</title>
+  <title>Inventario Pro v4</title>
   <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
   <style>
     :root{ --green:#2ecc71; --green-dark:#27ae60; --bg:#f4f7f6; --card:#ffffff; --radius:12px; }
     *{box-sizing:border-box}
     body{margin:0;font-family:sans-serif;background:var(--bg); display:flex; flex-direction:column; height:100vh;}
-    header{background:var(--green); color:white; padding:15px; display:flex; justify-content:space-between; align-items:center;}
+    header{background:var(--green); color:white; padding:15px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 2px 10px rgba(0,0,0,0.1);}
     main{display:flex; flex:1; overflow:hidden; gap:15px; padding:15px;}
     .sidebar{width:300px; background:white; border-radius:var(--radius); display:flex; flex-direction:column; padding:15px; box-shadow:0 2px 5px rgba(0,0,0,0.1);}
     .content{flex:1; display:flex; flex-direction:column; gap:15px;}
     .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:15px; overflow-y:auto;}
-    .cat-item{padding:10px; border:1px solid #eee; margin-bottom:5px; border-radius:8px; cursor:pointer; display:flex; justify-content:space-between; align-items:center;}
-    .cat-item:hover{background:#f0fff0;}
+    .cat-item{padding:12px; border:1px solid #eee; margin-bottom:8px; border-radius:8px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; background:#fff;}
+    .cat-item:hover{border-color:var(--green); background:#f9fff9;}
     .card{background:white; padding:12px; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.1); display:flex; flex-direction:column; gap:8px;}
-    .card img{width:100%; height:130px; object-fit:cover; border-radius:8px; background:#f9f9f9;}
-    .modal{position:fixed; inset:0; background:rgba(0,0,0,0.5); display:none; align-items:center; justify-content:center; z-index:100;}
-    .modal-content{background:white; padding:20px; border-radius:15px; width:95%; max-width:450px;}
-    .btn{padding:8px 12px; border-radius:8px; border:none; cursor:pointer; font-weight:bold; transition: 0.2s;}
+    .card img{width:100%; height:130px; object-fit:cover; border-radius:8px; background:#f0f0f0;}
+    .modal{position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; align-items:center; justify-content:center; z-index:100;}
+    .modal-content{background:white; padding:25px; border-radius:15px; width:95%; max-width:450px; box-shadow:0 10px 25px rgba(0,0,0,0.2);}
+    .btn{padding:10px 15px; border-radius:8px; border:none; cursor:pointer; font-weight:bold; transition:0.2s;}
     .btn-main{background:var(--green); color:white;}
     .btn-alt{background:#34495e; color:white;}
-    .btn-edit{background:#f1c40f; color:white; font-size: 11px;}
-    .btn-del{background:#e74c3c; color:white; font-size: 11px;}
-    input, select, textarea { width:100%; padding:10px; margin-bottom:10px; border:1px solid #ddd; border-radius:8px; }
-    .search-box { padding:10px; border-radius:8px; border:1px solid #ddd; margin-bottom:10px; width:100%; }
+    .btn-edit{background:#f1c40f; color:white; font-size:11px;}
+    .btn-del{background:#e74c3c; color:white; font-size:11px;}
+    input, select{ width:100%; padding:12px; margin-bottom:12px; border:1px solid #ddd; border-radius:8px; }
+    .search-box { padding:10px; border-radius:8px; border:1px solid #ddd; width:100%; max-width:250px; }
   </style>
 </head>
 <body>
 
 <header>
-  <strong>📦 Inventario v3</strong>
+  <div style="display:flex; align-items:center; gap:10px;">
+    <span style="font-size:24px;">📦</span>
+    <strong>Inventario Expert v4</strong>
+  </div>
   <div style="display:flex; gap:8px;">
-    <button class="btn btn-alt" onclick="exportarExcel()">Excel</button>
+    <button class="btn btn-alt" onclick="exportarExcelEstetico()">📊 Excel Pro</button>
     <button class="btn btn-alt" onclick="respaldarWhatsApp()">📲 Copiar</button>
     <button class="btn btn-alt" onclick="cargarDesdeWhatsApp()">📥 Cargar</button>
   </div>
@@ -43,17 +46,17 @@
 <main>
   <aside class="sidebar">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-      <h3 style="margin:0">Categorías</h3>
+      <h3 style="margin:0; color:#34495e;">Categorías</h3>
       <button class="btn btn-main" onclick="abrirModalCat()">+</button>
     </div>
-    <div id="catsList" style="flex:1; overflow-y:auto;"></div>
+    <div id="catsList" style="flex:1; overflow-y:auto; padding-right:5px;"></div>
   </aside>
 
   <section class="content">
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-      <h2 id="current-title" style="margin:0">Inicio</h2>
-      <div style="display:flex; gap:10px; flex:1; justify-content:flex-end;">
-        <input type="text" id="busqueda" class="search-box" placeholder="Buscar producto..." oninput="renderProds()" style="margin:0; max-width:200px;">
+      <h2 id="current-title" style="margin:0; color:#2c3e50;">Inicio</h2>
+      <div style="display:flex; gap:10px; flex:1; justify-content:flex-end; align-items:center;">
+        <input type="text" id="busqueda" class="search-box" placeholder="🔍 Buscar producto..." oninput="renderProds()">
         <button class="btn btn-main" onclick="abrirModalProd()">+ Producto</button>
       </div>
     </div>
@@ -63,32 +66,57 @@
 
 <div id="modalCat" class="modal"><div class="modal-content">
   <h3 id="catModalTitle">Nueva Subcategoría</h3>
-  <input type="text" id="newCatName" placeholder="Nombre (ej. Estante 1)">
-  <button class="btn btn-main" onclick="guardarCategoria()">Guardar</button>
-  <button class="btn" onclick="cerrarModales()">Cancelar</button>
+  <input type="text" id="newCatName" placeholder="Ej: Estante 1, Cajón 2">
+  <div style="display:flex; gap:10px; justify-content:flex-end;">
+    <button class="btn" onclick="cerrarModales()">Cancelar</button>
+    <button class="btn btn-main" onclick="guardarCategoria()">Guardar</button>
+  </div>
 </div></div>
 
 <div id="modalProd" class="modal"><div class="modal-content">
-  <h3 id="prodModalTitle">Nuevo Producto</h3>
+  <h3 id="prodModalTitle">Datos del Producto</h3>
   <input type="hidden" id="editProdId">
-  <label>Nombre del producto</label>
-  <input type="text" id="pNombre">
+  <input type="text" id="pNombre" placeholder="Nombre del producto">
   <div style="display:flex; gap:10px;">
-    <div style="flex:1"><label>Paquetes/Cajas</label><input type="number" id="pStock" value="1"></div>
-    <div style="flex:1"><label>Unid. por Paquete</label><input type="number" id="pUnidades" value="1"></div>
+    <div style="flex:1"><label style="font-size:12px; color:gray;">Cajas/Paquetes</label><input type="number" id="pStock" value="1"></div>
+    <div style="flex:1"><label style="font-size:12px; color:gray;">Unid. por Caja</label><input type="number" id="pUnidades" value="1"></div>
   </div>
-  <label>Imagen</label>
+  <label style="font-size:12px; color:gray;">Foto (se comprimirá automáticamente)</label>
   <input type="file" id="pFoto" accept="image/*">
-  <button class="btn btn-main" onclick="guardarProducto()">Guardar Producto</button>
-  <button class="btn" onclick="cerrarModales()">Cancelar</button>
+  <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:10px;">
+    <button class="btn" onclick="cerrarModales()">Cancelar</button>
+    <button class="btn btn-main" onclick="guardarProducto()">Confirmar</button>
+  </div>
 </div></div>
 
 <script>
-  let store = JSON.parse(localStorage.getItem('inv_v3')) || { categories: [], products: [] };
+  let store = JSON.parse(localStorage.getItem('inv_v4')) || { categories: [], products: [] };
   let currentParentId = null;
   const uid = () => Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
 
-  function save() { localStorage.setItem('inv_v3', JSON.stringify(store)); render(); }
+  function save() { localStorage.setItem('inv_v4', JSON.stringify(store)); render(); }
+
+  // COMPRESOR DE IMÁGENES
+  async function comprimirImagen(file) {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 400; // Tamaño máximo para que quepa en WhatsApp
+          const scaleSize = MAX_WIDTH / img.width;
+          canvas.width = MAX_WIDTH;
+          canvas.height = img.height * scaleSize;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', 0.7)); // Calidad 70%
+        };
+      };
+    });
+  }
 
   function render() {
     renderCats();
@@ -99,13 +127,13 @@
 
   function renderCats() {
     const list = document.getElementById('catsList');
-    list.innerHTML = currentParentId ? `<div class="cat-item" onclick="subirNivel()"><b>⬅ Volver</b></div>` : "";
+    list.innerHTML = currentParentId ? `<div class="cat-item" onclick="subirNivel()" style="background:#eee;"><b>⬅ Volver</b></div>` : "";
     store.categories.filter(c => c.parentId === currentParentId).forEach(cat => {
       list.innerHTML += `
         <div class="cat-item">
-          <span onclick="entrarCat('${cat.id}')" style="flex:1">${cat.name}</span>
-          <button class="btn-edit" onclick="editarCat('${cat.id}')" style="border-radius:4px; margin-right:4px;">✎</button>
-          <button class="btn-del" onclick="borrarCat('${cat.id}')" style="border-radius:4px;">🗑</button>
+          <span onclick="entrarCat('${cat.id}')" style="flex:1; font-weight:500;">${cat.name}</span>
+          <button class="btn-edit" onclick="editarCat('${cat.id}')" style="margin-right:5px;">✎</button>
+          <button class="btn-del" onclick="borrarCat('${cat.id}')">🗑</button>
         </div>`;
     });
   }
@@ -117,8 +145,7 @@
     
     const prods = store.products.filter(p => {
       const matchCat = term ? true : p.catId === currentParentId;
-      const matchTerm = p.name.toLowerCase().includes(term);
-      return matchCat && matchTerm;
+      return matchCat && p.name.toLowerCase().includes(term);
     });
 
     prods.forEach(p => {
@@ -126,11 +153,10 @@
       grid.innerHTML += `
         <div class="card">
           <img src="${p.foto || 'https://via.placeholder.com/150?text=Sin+Foto'}">
-          <h4 style="margin:0">${p.name}</h4>
-          <div style="font-size:12px; color:#666;">
-            <div>Cajas: <b>${p.stock}</b></div>
-            <div>Unid/Caja: <b>${p.unidades || 1}</b></div>
-            <div style="color:var(--green-dark); font-weight:bold; margin-top:4px;">Total: ${total} unidades</div>
+          <h4 style="margin:5px 0;">${p.name}</h4>
+          <div style="font-size:12px; color:#555; background:#f9f9f9; padding:5px; border-radius:5px;">
+            Cajas: <b>${p.stock}</b> | Unid: <b>${p.unidades || 1}</b>
+            <div style="color:var(--green-dark); font-weight:bold; margin-top:3px;">Total: ${total} u.</div>
           </div>
           <div style="display:flex; gap:5px; margin-top:auto;">
             <button class="btn btn-edit" style="flex:1" onclick="abrirEditarProd('${p.id}')">Editar</button>
@@ -147,28 +173,19 @@
     render();
   }
 
-  function abrirModalCat() { 
-    document.getElementById('catModalTitle').innerText = "Nueva Subcategoría";
-    document.getElementById('newCatName').value = "";
-    document.getElementById('modalCat').style.display='flex'; 
-  }
-
+  function abrirModalCat() { document.getElementById('modalCat').style.display='flex'; }
   function abrirModalProd() { 
-    document.getElementById('prodModalTitle').innerText = "Nuevo Producto";
     document.getElementById('editProdId').value = "";
     document.getElementById('pNombre').value = "";
-    document.getElementById('pStock').value = "1";
-    document.getElementById('pUnidades').value = "1";
     document.getElementById('modalProd').style.display='flex'; 
   }
 
   function abrirEditarProd(id) {
     const p = store.products.find(x => x.id === id);
-    document.getElementById('prodModalTitle').innerText = "Editar Producto";
     document.getElementById('editProdId').value = p.id;
     document.getElementById('pNombre').value = p.name;
     document.getElementById('pStock').value = p.stock;
-    document.getElementById('pUnidades').value = p.unidades || 1;
+    document.getElementById('pUnidades').value = p.unidades;
     document.getElementById('modalProd').style.display='flex';
   }
 
@@ -182,7 +199,7 @@
 
   function editarCat(id) {
     const cat = store.categories.find(c => c.id === id);
-    const nuevo = prompt("Nuevo nombre:", cat.name);
+    const nuevo = prompt("Editar nombre:", cat.name);
     if(nuevo) { cat.name = nuevo; save(); }
   }
 
@@ -194,16 +211,13 @@
     const file = document.getElementById('pFoto').files[0];
     
     let foto = "";
-    if(file) {
-      const reader = new FileReader();
-      foto = await new Promise(r => { reader.onload=()=>r(reader.result); reader.readAsDataURL(file); });
-    }
+    if(file) foto = await comprimirImagen(file);
 
-    if(id) { // Editar
+    if(id) {
       const p = store.products.find(x => x.id === id);
       p.name = name; p.stock = stock; p.unidades = unidades;
       if(foto) p.foto = foto;
-    } else { // Nuevo
+    } else {
       store.products.push({id: uid(), name, stock, unidades, foto, catId: currentParentId});
     }
     cerrarModales(); save();
@@ -213,33 +227,67 @@
   function borrarProd(id) { if(confirm("¿Borrar producto?")) { store.products = store.products.filter(p=>p.id!==id); save(); } }
 
   function respaldarWhatsApp() {
-    const data = btoa(unescape(encodeURIComponent(JSON.stringify(store))));
-    navigator.clipboard.writeText(data);
-    alert("¡Copiado! Pégalo en WhatsApp.");
+    try {
+      const data = btoa(unescape(encodeURIComponent(JSON.stringify(store))));
+      navigator.clipboard.writeText(data);
+      alert("✅ Datos comprimidos y copiados. ¡Pégalos en WhatsApp!");
+    } catch(e) { alert("Error al copiar. Puede que tengas demasiadas fotos muy pesadas."); }
   }
 
   function cargarDesdeWhatsApp() {
-    const code = prompt("Pega el código:");
+    const code = prompt("Pega el código de respaldo aquí:");
     if(code) {
       try {
         store = JSON.parse(decodeURIComponent(escape(atob(code))));
         save(); location.reload();
-      } catch(e) { alert("Error."); }
+      } catch(e) { alert("Código no válido."); }
     }
   }
 
-  function exportarExcel() {
-    const data = store.products.map(p => ({
-      Ubicacion: store.categories.find(c=>c.id===p.catId)?.name || "Raíz",
-      Producto: p.name,
-      Cajas: p.stock,
-      Unid_por_Caja: p.unidades || 1,
-      Total_Unidades: p.stock * (p.unidades || 1)
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
+  // EXCEL MULTI-HOJA Y ESTÉTICO
+  function exportarExcelEstetico() {
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Inventario");
-    XLSX.writeFile(wb, "Inventario_v3.xlsx");
+    
+    // Obtener categorías raíz (ORGANIZADORES, FILAMENTOS, etc.)
+    const raices = store.categories.filter(c => c.parentId === null);
+    
+    if (raices.length === 0) {
+      alert("Crea al menos una categoría principal para exportar.");
+      return;
+    }
+
+    raices.forEach(raiz => {
+      // Buscar todos los sub-hijos de esta raíz
+      let idsDeEstaRama = [raiz.id];
+      let buscarHijos = (id) => {
+        store.categories.filter(c => c.parentId === id).forEach(h => {
+          idsDeEstaRama.push(h.id);
+          buscarHijos(h.id);
+        });
+      };
+      buscarHijos(raiz.id);
+
+      // Filtrar productos de esta rama
+      const prodsRama = store.products.filter(p => idsDeEstaRama.includes(p.catId)).map(p => {
+        const cat = store.categories.find(c => c.id === p.catId);
+        return {
+          "Ubicación Específica": cat ? cat.name : "Principal",
+          "Nombre del Producto": p.name,
+          "Cant. Cajas": p.stock,
+          "Unid x Caja": p.unidades || 1,
+          "TOTAL UNIDADES": p.stock * (p.unidades || 1)
+        };
+      });
+
+      if (prodsRama.length > 0) {
+        const ws = XLSX.utils.json_to_sheet(prodsRama);
+        // Ajustar anchos
+        ws['!cols'] = [{wch:25}, {wch:30}, {wch:12}, {wch:12}, {wch:15}];
+        XLSX.utils.book_append_sheet(wb, ws, raiz.name.substring(0,30));
+      }
+    });
+
+    XLSX.writeFile(wb, "Inventario_Organizado.xlsx");
   }
 
   render();
