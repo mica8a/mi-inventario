@@ -3,13 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Inventario Cloud v9</title>
+  <title>Inventario Cloud v9.1</title>
   <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getFirestore, collection, onSnapshot, doc, setDoc, deleteDoc, query } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getFirestore, collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-    // Configuración que me pasaste
     const firebaseConfig = {
       apiKey: "AIzaSyDRKyPBXDcYwoiPU1dPLde58a1-_Z_kvYI",
       authDomain: "mi-inventario-21b8b.firebaseapp.com",
@@ -22,25 +21,20 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // --- VARIABLES DE ESTADO ---
     let store = { categories: [], products: [] };
     let currentParentId = null;
 
-    // --- SINCRONIZACIÓN EN TIEMPO REAL ---
-    // Escuchar Categorías
     onSnapshot(collection(db, "categories"), (snapshot) => {
       store.categories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       render();
     });
 
-    // Escuchar Productos
     onSnapshot(collection(db, "products"), (snapshot) => {
       store.products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       render();
     });
 
-    // --- FUNCIONES GLOBALIZADAS ---
-    window.entrarCat = (id) => { currentParentId = id; render(); };
+    window.entrarCat = (id) => { currentParentId = id; render(); if(window.innerWidth < 768) toggleSidebar(); };
     window.subirNivel = () => {
       const c = store.categories.find(x => x.id === currentParentId);
       currentParentId = c ? c.parentId : null;
@@ -49,10 +43,16 @@
 
     window.guardarCategoria = async () => {
       const name = document.getElementById('newCatName').value.toUpperCase();
+      const id = document.getElementById('editCatId').value || Date.now().toString(36);
       if(!name) return;
-      const id = Date.now().toString(36);
-      await setDoc(doc(db, "categories", id), { name, parentId: currentParentId });
+      await setDoc(doc(db, "categories", id), { name, parentId: currentParentId }, { merge: true });
       cerrarModales();
+    };
+
+    window.abrirEditarCat = (id, name) => {
+      document.getElementById('editCatId').value = id;
+      document.getElementById('newCatName').value = name;
+      document.getElementById('modalCat').style.display='flex';
     };
 
     window.guardarProducto = async () => {
@@ -61,44 +61,38 @@
       const unidades = parseInt(document.getElementById('pUnidades').value) || 0;
       const desc = document.getElementById('pDesc').value.toUpperCase();
       const file = document.getElementById('pFoto').files[0];
-      
       let pData = { name, unidades, desc, catId: currentParentId };
-      
-      if(file) {
-        pData.foto = await comprimirImagen(file);
-      } else if (document.getElementById('editProdId').value) {
-        const exist = store.products.find(p => p.id === id);
-        if(exist.foto) pData.foto = exist.foto;
-      }
-
-      await setDoc(doc(db, "products", id), pData);
+      if(file) pData.foto = await comprimirImagen(file);
+      await setDoc(doc(db, "products", id), pData, { merge: true });
       cerrarModales();
     };
 
     window.borrarCat = async (id) => { if(confirm("¿Borrar categoría?")) await deleteDoc(doc(db, "categories", id)); };
     window.borrarProd = async (id) => { if(confirm("¿Borrar producto?")) await deleteDoc(doc(db, "products", id)); };
+    
+    window.toggleSidebar = () => {
+      const sb = document.getElementById('sidebar');
+      sb.classList.toggle('active');
+    };
 
-    // --- RENDERIZADO ---
     function render() {
       const catList = document.getElementById('catsList');
       const prodGrid = document.getElementById('cardsGrid');
-      const title = document.getElementById('current-title');
-      
-      // Título
       const actual = store.categories.find(c => c.id === currentParentId);
-      title.innerText = actual ? actual.name : "Inicio";
+      document.getElementById('current-title').innerText = actual ? actual.name : "Inicio";
 
-      // Categorías
       catList.innerHTML = currentParentId ? `<div class="cat-item" onclick="subirNivel()"><b>⬅ Volver</b></div>` : "";
       store.categories.filter(c => c.parentId === currentParentId).forEach(cat => {
         catList.innerHTML += `
           <div class="cat-item">
             <span onclick="entrarCat('${cat.id}')" style="flex:1">${cat.name}</span>
-            <button class="btn-del" onclick="borrarCat('${cat.id}')">🗑</button>
+            <div style="display:flex; gap:4px;">
+              <button class="btn-edit" onclick="abrirEditarCat('${cat.id}', '${cat.name}')">✎</button>
+              <button class="btn-del" onclick="borrarCat('${cat.id}')">🗑</button>
+            </div>
           </div>`;
       });
 
-      // Productos
       prodGrid.innerHTML = "";
       store.products.filter(p => p.catId === currentParentId).forEach(p => {
         prodGrid.innerHTML += `
@@ -108,14 +102,13 @@
             <p style="font-size:11px; color:#666">${p.desc || ''}</p>
             <div class="unidades-badge"><b>${p.unidades} UNIDADES</b></div>
             <div style="display:flex; gap:5px; margin-top:auto;">
-              <button class="btn-edit" style="flex:1" onclick="abrirEditar('${p.id}')">✎</button>
-              <button class="btn-del" style="flex:1" onclick="borrarProd('${p.id}')">🗑</button>
+              <button class="btn-edit" style="flex:1" onclick="abrirEditarProd('${p.id}')">Editar</button>
+              <button class="btn-del" style="flex:1" onclick="borrarProd('${p.id}')">Borrar</button>
             </div>
           </div>`;
       });
     }
 
-    // Funciones auxiliares
     async function comprimirImagen(file) {
       return new Promise((resolve) => {
         const reader = new FileReader();
@@ -132,6 +125,15 @@
         };
       });
     }
+
+    window.abrirEditarProd = (id) => {
+      const p = store.products.find(x => x.id === id);
+      document.getElementById('editProdId').value = p.id;
+      document.getElementById('pNombre').value = p.name;
+      document.getElementById('pUnidades').value = p.unidades;
+      document.getElementById('pDesc').value = p.desc || "";
+      document.getElementById('modalProd').style.display='flex';
+    };
 
     window.exportarExcelV9 = () => {
       const wb = XLSX.utils.book_new();
@@ -154,83 +156,86 @@
       });
       XLSX.writeFile(wb, "Inventario_Sincronizado.xlsx");
     };
-
-    window.abrirEditar = (id) => {
-      const p = store.products.find(x => x.id === id);
-      document.getElementById('editProdId').value = p.id;
-      document.getElementById('pNombre').value = p.name;
-      document.getElementById('pUnidades').value = p.unidades;
-      document.getElementById('pDesc').value = p.desc || "";
-      document.getElementById('modalProd').style.display='flex';
-    };
   </script>
 
   <style>
     :root{ --green:#2ecc71; --bg:#f4f7f6; --radius:12px; }
-    body{ margin:0; font-family:sans-serif; background:var(--bg); display:flex; flex-direction:column; height:100vh; }
-    header{ background:var(--green); color:white; padding:15px; display:flex; justify-content:space-between; align-items:center; }
-    main{ display:flex; flex:1; overflow:hidden; padding:15px; gap:15px; }
-    .sidebar{ width:280px; background:white; border-radius:var(--radius); padding:15px; display:flex; flex-direction:column; box-shadow:0 2px 5px rgba(0,0,0,0.1); }
-    .content{ flex:1; display:flex; flex-direction:column; gap:15px; overflow-y:auto; }
-    .grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:15px; }
-    .cat-item{ padding:10px; border:1px solid #eee; border-radius:8px; margin-bottom:8px; cursor:pointer; display:flex; align-items:center; justify-content:space-between; background:white; }
+    body{ margin:0; font-family:sans-serif; background:var(--bg); display:flex; flex-direction:column; height:100vh; overflow:hidden;}
+    header{ background:var(--green); color:white; padding:10px 15px; display:flex; justify-content:space-between; align-items:center; z-index:10; }
+    main{ display:flex; flex:1; overflow:hidden; position:relative; }
+    
+    /* Sidebar Adaptable */
+    .sidebar{ width:280px; background:white; padding:15px; display:flex; flex-direction:column; box-shadow:2px 0 5px rgba(0,0,0,0.1); transition: 0.3s; z-index:5; }
+    .content{ flex:1; display:flex; flex-direction:column; padding:15px; overflow-y:auto; }
+    
+    @media (max-width: 768px) {
+      .sidebar { position: absolute; left: -280px; height: 100%; }
+      .sidebar.active { left: 0; }
+      .menu-toggle { display: block !important; }
+    }
+
+    .grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:10px; }
+    .cat-item{ padding:10px; border:1px solid #eee; border-radius:8px; margin-bottom:8px; cursor:pointer; display:flex; align-items:center; background:white; }
     .card{ background:white; padding:10px; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.05); display:flex; flex-direction:column; gap:5px; }
-    .card img{ width:100%; height:120px; object-fit:cover; border-radius:8px; }
-    .unidades-badge{ background:#f0fcf4; padding:5px; border-radius:5px; text-align:center; font-size:13px; }
+    .card img{ width:100%; height:110px; object-fit:cover; border-radius:8px; }
+    .unidades-badge{ background:#f0fcf4; padding:5px; border-radius:5px; text-align:center; font-size:12px; }
     .modal{ position:fixed; inset:0; background:rgba(0,0,0,0.5); display:none; align-items:center; justify-content:center; z-index:100; }
     .modal-content{ background:white; padding:20px; border-radius:15px; width:90%; max-width:400px; }
     .btn-main{ background:var(--green); color:white; border:none; padding:10px; border-radius:8px; cursor:pointer; font-weight:bold; }
-    .btn-del{ background:#e74c3c; color:white; border:none; padding:5px 8px; border-radius:5px; cursor:pointer; }
-    .btn-edit{ background:#f1c40f; color:white; border:none; padding:5px 8px; border-radius:5px; cursor:pointer; }
+    .btn-del{ background:#e74c3c; color:white; border:none; padding:5px 8px; border-radius:5px; cursor:pointer; font-size:12px;}
+    .btn-edit{ background:#f1c40f; color:white; border:none; padding:5px 8px; border-radius:5px; cursor:pointer; font-size:12px;}
     input, textarea{ width:100%; padding:10px; margin-bottom:10px; border:1px solid #ddd; border-radius:8px; box-sizing:border-box; }
   </style>
 </head>
 <body>
 
 <header>
-  <strong>📦 Inventario Cloud v9</strong>
-  <button class="btn-main" style="background:#34495e" onclick="exportarExcelV9()">📊 Descargar Excel</button>
+  <div style="display:flex; align-items:center; gap:10px;">
+    <button class="menu-toggle" style="display:none; background:none; border:1px solid white; color:white; padding:5px 10px; border-radius:5px;" onclick="toggleSidebar()">☰ Categorías</button>
+    <strong>Cloud v9.1</strong>
+  </div>
+  <button class="btn-main" style="background:#34495e; padding:5px 10px; font-size:12px;" onclick="exportarExcelV9()">📊 Excel</button>
 </header>
 
 <main>
-  <aside class="sidebar">
+  <aside class="sidebar" id="sidebar">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
       <h3 style="margin:0">Categorías</h3>
-      <button class="btn-main" onclick="document.getElementById('modalCat').style.display='flex'">+</button>
+      <button class="btn-main" onclick="document.getElementById('editCatId').value=''; document.getElementById('newCatName').value=''; document.getElementById('modalCat').style.display='flex'">+</button>
     </div>
     <div id="catsList" style="overflow-y:auto"></div>
   </aside>
 
   <section class="content">
-    <div style="display:flex; justify-content:space-between; align-items:center;">
-      <h2 id="current-title" style="margin:0">Inicio</h2>
-      <button class="btn-main" onclick="document.getElementById('modalProd').style.display='flex'; document.getElementById('editProdId').value='';">+ Producto</button>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h2 id="current-title" style="margin:0; font-size:1.2rem;">Inicio</h2>
+      <button class="btn-main" onclick="document.getElementById('modalProd').style.display='flex'; document.getElementById('editProdId').value=''; document.getElementById('pNombre').value='';">+ Producto</button>
     </div>
     <div id="cardsGrid" class="grid"></div>
   </section>
 </main>
 
 <div id="modalCat" class="modal"><div class="modal-content">
-  <h3>Nueva Categoría</h3>
-  <input type="text" id="newCatName" placeholder="NOMBRE DE CATEGORÍA">
+  <h3>Categoría</h3>
+  <input type="hidden" id="editCatId">
+  <input type="text" id="newCatName" placeholder="NOMBRE">
   <button class="btn-main" style="width:100%" onclick="guardarCategoria()">Guardar</button>
-  <button onclick="cerrarModales()" style="width:100%; background:none; border:none; margin-top:10px; cursor:pointer">Cancelar</button>
+  <button onclick="cerrarModales()" style="width:100%; background:none; border:none; margin-top:10px;">Cancelar</button>
 </div></div>
 
 <div id="modalProd" class="modal"><div class="modal-content">
-  <h3>Datos del Producto</h3>
+  <h3>Producto</h3>
   <input type="hidden" id="editProdId">
   <input type="text" id="pNombre" placeholder="NOMBRE">
   <input type="number" id="pUnidades" placeholder="UNIDADES" value="1">
   <textarea id="pDesc" placeholder="DESCRIPCIÓN"></textarea>
   <input type="file" id="pFoto" accept="image/*">
-  <button class="btn-main" style="width:100%" onclick="guardarProducto()">Guardar Producto</button>
-  <button onclick="cerrarModales()" style="width:100%; background:none; border:none; margin-top:10px; cursor:pointer">Cancelar</button>
+  <button class="btn-main" style="width:100%" onclick="guardarProducto()">Guardar</button>
+  <button onclick="cerrarModales()" style="width:100%; background:none; border:none; margin-top:10px;">Cancelar</button>
 </div></div>
 
 <script>
   function cerrarModales() { document.querySelectorAll('.modal').forEach(m => m.style.display='none'); }
 </script>
-
 </body>
 </html>
