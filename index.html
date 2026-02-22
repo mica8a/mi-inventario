@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Inventario Pro v4</title>
+  <title>Inventario Pro v5</title>
   <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
   <style>
     :root{ --green:#2ecc71; --green-dark:#27ae60; --bg:#f4f7f6; --card:#ffffff; --radius:12px; }
@@ -34,10 +34,10 @@
 <header>
   <div style="display:flex; align-items:center; gap:10px;">
     <span style="font-size:24px;">📦</span>
-    <strong>Inventario Expert v4</strong>
+    <strong>Inventario Pro v5</strong>
   </div>
   <div style="display:flex; gap:8px;">
-    <button class="btn btn-alt" onclick="exportarExcelEstetico()">📊 Excel Pro</button>
+    <button class="btn btn-alt" onclick="exportarExcelEstiloGrafico()">📊 Excel Pro</button>
     <button class="btn btn-alt" onclick="respaldarWhatsApp()">📲 Copiar</button>
     <button class="btn btn-alt" onclick="cargarDesdeWhatsApp()">📥 Cargar</button>
   </div>
@@ -56,7 +56,7 @@
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
       <h2 id="current-title" style="margin:0; color:#2c3e50;">Inicio</h2>
       <div style="display:flex; gap:10px; flex:1; justify-content:flex-end; align-items:center;">
-        <input type="text" id="busqueda" class="search-box" placeholder="🔍 Buscar producto..." oninput="renderProds()">
+        <input type="text" id="busqueda" class="search-box" placeholder="🔍 Buscar..." oninput="renderProds()">
         <button class="btn btn-main" onclick="abrirModalProd()">+ Producto</button>
       </div>
     </div>
@@ -65,8 +65,8 @@
 </main>
 
 <div id="modalCat" class="modal"><div class="modal-content">
-  <h3 id="catModalTitle">Nueva Subcategoría</h3>
-  <input type="text" id="newCatName" placeholder="Ej: Estante 1, Cajón 2">
+  <h3 id="catModalTitle">Nueva Categoría</h3>
+  <input type="text" id="newCatName" placeholder="Ej: ORGANIZADORES">
   <div style="display:flex; gap:10px; justify-content:flex-end;">
     <button class="btn" onclick="cerrarModales()">Cancelar</button>
     <button class="btn btn-main" onclick="guardarCategoria()">Guardar</button>
@@ -76,43 +76,42 @@
 <div id="modalProd" class="modal"><div class="modal-content">
   <h3 id="prodModalTitle">Datos del Producto</h3>
   <input type="hidden" id="editProdId">
-  <input type="text" id="pNombre" placeholder="Nombre del producto">
+  <input type="text" id="pNombre" placeholder="Nombre (ej. 1. PULIDO)">
   <div style="display:flex; gap:10px;">
-    <div style="flex:1"><label style="font-size:12px; color:gray;">Cajas/Paquetes</label><input type="number" id="pStock" value="1"></div>
-    <div style="flex:1"><label style="font-size:12px; color:gray;">Unid. por Caja</label><input type="number" id="pUnidades" value="1"></div>
+    <div style="flex:1"><label style="font-size:12px; color:gray;">Paquetes</label><input type="number" id="pStock" value="1"></div>
+    <div style="flex:1"><label style="font-size:12px; color:gray;">Unid x Paquete</label><input type="number" id="pUnidades" value="1"></div>
   </div>
-  <label style="font-size:12px; color:gray;">Foto (se comprimirá automáticamente)</label>
+  <label style="font-size:12px; color:gray;">Imagen (compresión auto)</label>
   <input type="file" id="pFoto" accept="image/*">
   <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:10px;">
     <button class="btn" onclick="cerrarModales()">Cancelar</button>
-    <button class="btn btn-main" onclick="guardarProducto()">Confirmar</button>
+    <button class="btn btn-main" onclick="guardarProducto()">Guardar</button>
   </div>
 </div></div>
 
 <script>
-  let store = JSON.parse(localStorage.getItem('inv_v4')) || { categories: [], products: [] };
+  let store = JSON.parse(localStorage.getItem('inv_v5')) || { categories: [], products: [] };
   let currentParentId = null;
   const uid = () => Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
 
-  function save() { localStorage.setItem('inv_v4', JSON.stringify(store)); render(); }
+  function save() { localStorage.setItem('inv_v5', JSON.stringify(store)); render(); }
 
-  // COMPRESOR DE IMÁGENES
   async function comprimirImagen(file) {
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
-      reader.onload = (event) => {
+      reader.onload = (e) => {
         const img = new Image();
-        img.src = event.target.result;
+        img.src = e.target.result;
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 400; // Tamaño máximo para que quepa en WhatsApp
-          const scaleSize = MAX_WIDTH / img.width;
+          const MAX_WIDTH = 400;
+          const scale = MAX_WIDTH / img.width;
           canvas.width = MAX_WIDTH;
-          canvas.height = img.height * scaleSize;
+          canvas.height = img.height * scale;
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL('image/jpeg', 0.7)); // Calidad 70%
+          resolve(canvas.toDataURL('image/jpeg', 0.7));
         };
       };
     });
@@ -142,21 +141,15 @@
     const grid = document.getElementById('cardsGrid');
     const term = document.getElementById('busqueda').value.toLowerCase();
     grid.innerHTML = "";
-    
-    const prods = store.products.filter(p => {
-      const matchCat = term ? true : p.catId === currentParentId;
-      return matchCat && p.name.toLowerCase().includes(term);
-    });
-
+    const prods = store.products.filter(p => (term ? true : p.catId === currentParentId) && p.name.toLowerCase().includes(term));
     prods.forEach(p => {
       const total = p.stock * (p.unidades || 1);
       grid.innerHTML += `
         <div class="card">
-          <img src="${p.foto || 'https://via.placeholder.com/150?text=Sin+Foto'}">
+          <img src="${p.foto || 'https://via.placeholder.com/150'}">
           <h4 style="margin:5px 0;">${p.name}</h4>
           <div style="font-size:12px; color:#555; background:#f9f9f9; padding:5px; border-radius:5px;">
-            Cajas: <b>${p.stock}</b> | Unid: <b>${p.unidades || 1}</b>
-            <div style="color:var(--green-dark); font-weight:bold; margin-top:3px;">Total: ${total} u.</div>
+            Total: <b>${total} unidades</b>
           </div>
           <div style="display:flex; gap:5px; margin-top:auto;">
             <button class="btn btn-edit" style="flex:1" onclick="abrirEditarProd('${p.id}')">Editar</button>
@@ -192,7 +185,7 @@
   function cerrarModales() { document.querySelectorAll('.modal').forEach(m=>m.style.display='none'); }
 
   function guardarCategoria() {
-    const name = document.getElementById('newCatName').value;
+    const name = document.getElementById('newCatName').value.toUpperCase();
     if(name) store.categories.push({id: uid(), name, parentId: currentParentId});
     cerrarModales(); save();
   }
@@ -200,19 +193,17 @@
   function editarCat(id) {
     const cat = store.categories.find(c => c.id === id);
     const nuevo = prompt("Editar nombre:", cat.name);
-    if(nuevo) { cat.name = nuevo; save(); }
+    if(nuevo) { cat.name = nuevo.toUpperCase(); save(); }
   }
 
   async function guardarProducto() {
     const id = document.getElementById('editProdId').value;
-    const name = document.getElementById('pNombre').value;
+    const name = document.getElementById('pNombre').value.toUpperCase();
     const stock = parseInt(document.getElementById('pStock').value);
     const unidades = parseInt(document.getElementById('pUnidades').value);
     const file = document.getElementById('pFoto').files[0];
-    
     let foto = "";
     if(file) foto = await comprimirImagen(file);
-
     if(id) {
       const p = store.products.find(x => x.id === id);
       p.name = name; p.stock = stock; p.unidades = unidades;
@@ -223,71 +214,66 @@
     cerrarModales(); save();
   }
 
-  function borrarCat(id) { if(confirm("¿Borrar categoría?")) { store.categories = store.categories.filter(c=>c.id!==id); save(); } }
-  function borrarProd(id) { if(confirm("¿Borrar producto?")) { store.products = store.products.filter(p=>p.id!==id); save(); } }
+  function borrarCat(id) { if(confirm("¿Borrar?")) { store.categories = store.categories.filter(c=>c.id!==id); save(); } }
+  function borrarProd(id) { if(confirm("¿Borrar?")) { store.products = store.products.filter(p=>p.id!==id); save(); } }
 
   function respaldarWhatsApp() {
-    try {
-      const data = btoa(unescape(encodeURIComponent(JSON.stringify(store))));
-      navigator.clipboard.writeText(data);
-      alert("✅ Datos comprimidos y copiados. ¡Pégalos en WhatsApp!");
-    } catch(e) { alert("Error al copiar. Puede que tengas demasiadas fotos muy pesadas."); }
+    const data = btoa(unescape(encodeURIComponent(JSON.stringify(store))));
+    navigator.clipboard.writeText(data);
+    alert("Copiado para WhatsApp");
   }
 
   function cargarDesdeWhatsApp() {
-    const code = prompt("Pega el código de respaldo aquí:");
+    const code = prompt("Pega el código:");
     if(code) {
       try {
         store = JSON.parse(decodeURIComponent(escape(atob(code))));
         save(); location.reload();
-      } catch(e) { alert("Código no válido."); }
+      } catch(e) { alert("Error"); }
     }
   }
 
-  // EXCEL MULTI-HOJA Y ESTÉTICO
-  function exportarExcelEstetico() {
+  // --- EXPORTACIÓN CON FORMATO GRÁFICO ---
+  function exportarExcelEstiloGrafico() {
     const wb = XLSX.utils.book_new();
-    
-    // Obtener categorías raíz (ORGANIZADORES, FILAMENTOS, etc.)
     const raices = store.categories.filter(c => c.parentId === null);
-    
-    if (raices.length === 0) {
-      alert("Crea al menos una categoría principal para exportar.");
-      return;
-    }
 
     raices.forEach(raiz => {
-      // Buscar todos los sub-hijos de esta raíz
-      let idsDeEstaRama = [raiz.id];
-      let buscarHijos = (id) => {
-        store.categories.filter(c => c.parentId === id).forEach(h => {
-          idsDeEstaRama.push(h.id);
-          buscarHijos(h.id);
-        });
+      let rows = [];
+      // Fila 1: Categoría Principal (Verde)
+      rows.push([raiz.name, ""]); 
+      rows.push(["", ""]); // Espacio
+
+      // Buscar subcategorías e hijos
+      let buscarEnRama = (idPadre, nivel) => {
+        const subcats = store.categories.filter(c => c.parentId === idPadre);
+        
+        // Productos directos de esta categoría
+        const prods = store.products.filter(p => p.catId === idPadre);
+        if(prods.length > 0) {
+          const nombrePadre = store.categories.find(c => c.id === idPadre).name;
+          rows.push([nombrePadre, ""]); // Subtítulo verde
+          rows.push(["NOMBRE PRODUCTO", "UNIDADES"]); // Encabezado tabla
+          prods.forEach(p => {
+            rows.push([p.name, p.stock * (p.unidades || 1)]);
+          });
+          rows.push(["", ""]); // Espacio tras tabla
+        }
+
+        subcats.forEach(s => buscarEnRama(s.id, nivel + 1));
       };
-      buscarHijos(raiz.id);
 
-      // Filtrar productos de esta rama
-      const prodsRama = store.products.filter(p => idsDeEstaRama.includes(p.catId)).map(p => {
-        const cat = store.categories.find(c => c.id === p.catId);
-        return {
-          "Ubicación Específica": cat ? cat.name : "Principal",
-          "Nombre del Producto": p.name,
-          "Cant. Cajas": p.stock,
-          "Unid x Caja": p.unidades || 1,
-          "TOTAL UNIDADES": p.stock * (p.unidades || 1)
-        };
-      });
+      buscarEnRama(raiz.id, 0);
 
-      if (prodsRama.length > 0) {
-        const ws = XLSX.utils.json_to_sheet(prodsRama);
-        // Ajustar anchos
-        ws['!cols'] = [{wch:25}, {wch:30}, {wch:12}, {wch:12}, {wch:15}];
-        XLSX.utils.book_append_sheet(wb, ws, raiz.name.substring(0,30));
-      }
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      
+      // Ajuste de ancho de columnas
+      ws['!cols'] = [{wch: 40}, {wch: 15}];
+
+      XLSX.utils.book_append_sheet(wb, ws, raiz.name.substring(0,30));
     });
 
-    XLSX.writeFile(wb, "Inventario_Organizado.xlsx");
+    XLSX.writeFile(wb, "Inventario_Estilo_Manual.xlsx");
   }
 
   render();
