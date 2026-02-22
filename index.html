@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Inventario Pro v5</title>
+  <title>Inventario Pro v7</title>
   <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
   <style>
     :root{ --green:#2ecc71; --green-dark:#27ae60; --bg:#f4f7f6; --card:#ffffff; --radius:12px; }
@@ -25,7 +25,7 @@
     .btn-alt{background:#34495e; color:white;}
     .btn-edit{background:#f1c40f; color:white; font-size:11px;}
     .btn-del{background:#e74c3c; color:white; font-size:11px;}
-    input, select{ width:100%; padding:12px; margin-bottom:12px; border:1px solid #ddd; border-radius:8px; }
+    input, textarea{ width:100%; padding:12px; margin-bottom:12px; border:1px solid #ddd; border-radius:8px; font-family: sans-serif; }
     .search-box { padding:10px; border-radius:8px; border:1px solid #ddd; width:100%; max-width:250px; }
   </style>
 </head>
@@ -33,11 +33,10 @@
 
 <header>
   <div style="display:flex; align-items:center; gap:10px;">
-    <span style="font-size:24px;">📦</span>
-    <strong>Inventario Pro v5</strong>
+    <strong>Inventario Pro v7</strong>
   </div>
   <div style="display:flex; gap:8px;">
-    <button class="btn btn-alt" onclick="exportarExcelEstiloGrafico()">📊 Excel Pro</button>
+    <button class="btn btn-alt" onclick="exportarExcelV7()">📊 Excel Pro</button>
     <button class="btn btn-alt" onclick="respaldarWhatsApp()">📲 Copiar</button>
     <button class="btn btn-alt" onclick="cargarDesdeWhatsApp()">📥 Cargar</button>
   </div>
@@ -76,13 +75,19 @@
 <div id="modalProd" class="modal"><div class="modal-content">
   <h3 id="prodModalTitle">Datos del Producto</h3>
   <input type="hidden" id="editProdId">
-  <input type="text" id="pNombre" placeholder="Nombre (ej. 1. PULIDO)">
-  <div style="display:flex; gap:10px;">
-    <div style="flex:1"><label style="font-size:12px; color:gray;">Paquetes</label><input type="number" id="pStock" value="1"></div>
-    <div style="flex:1"><label style="font-size:12px; color:gray;">Unid x Paquete</label><input type="number" id="pUnidades" value="1"></div>
-  </div>
-  <label style="font-size:12px; color:gray;">Imagen (compresión auto)</label>
+  
+  <label style="font-size:12px; color:gray;">Nombre</label>
+  <input type="text" id="pNombre" placeholder="Ej: 1. PULIDO">
+  
+  <label style="font-size:12px; color:gray;">Unidades</label>
+  <input type="number" id="pUnidades" value="1">
+
+  <label style="font-size:12px; color:gray;">Descripción</label>
+  <textarea id="pDesc" rows="3" placeholder="Detalles del producto..."></textarea>
+
+  <label style="font-size:12px; color:gray;">Imagen</label>
   <input type="file" id="pFoto" accept="image/*">
+  
   <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:10px;">
     <button class="btn" onclick="cerrarModales()">Cancelar</button>
     <button class="btn btn-main" onclick="guardarProducto()">Guardar</button>
@@ -90,11 +95,11 @@
 </div></div>
 
 <script>
-  let store = JSON.parse(localStorage.getItem('inv_v5')) || { categories: [], products: [] };
+  let store = JSON.parse(localStorage.getItem('inv_v7')) || { categories: [], products: [] };
   let currentParentId = null;
   const uid = () => Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
 
-  function save() { localStorage.setItem('inv_v5', JSON.stringify(store)); render(); }
+  function save() { localStorage.setItem('inv_v7', JSON.stringify(store)); render(); }
 
   async function comprimirImagen(file) {
     return new Promise((resolve) => {
@@ -111,7 +116,7 @@
           canvas.height = img.height * scale;
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL('image/jpeg', 0.7));
+          resolve(canvas.toDataURL('image/jpeg', 0.6));
         };
       };
     });
@@ -143,13 +148,13 @@
     grid.innerHTML = "";
     const prods = store.products.filter(p => (term ? true : p.catId === currentParentId) && p.name.toLowerCase().includes(term));
     prods.forEach(p => {
-      const total = p.stock * (p.unidades || 1);
       grid.innerHTML += `
         <div class="card">
           <img src="${p.foto || 'https://via.placeholder.com/150'}">
           <h4 style="margin:5px 0;">${p.name}</h4>
-          <div style="font-size:12px; color:#555; background:#f9f9f9; padding:5px; border-radius:5px;">
-            Total: <b>${total} unidades</b>
+          <p style="font-size:11px; color:#666; margin:0;">${p.desc || ''}</p>
+          <div style="font-size:14px; color:#333; background:#f0fcf4; padding:8px; border-radius:5px; text-align:center; margin-top:5px;">
+            <b>${p.unidades} UNIDADES</b>
           </div>
           <div style="display:flex; gap:5px; margin-top:auto;">
             <button class="btn btn-edit" style="flex:1" onclick="abrirEditarProd('${p.id}')">Editar</button>
@@ -170,6 +175,8 @@
   function abrirModalProd() { 
     document.getElementById('editProdId').value = "";
     document.getElementById('pNombre').value = "";
+    document.getElementById('pUnidades').value = "1";
+    document.getElementById('pDesc').value = "";
     document.getElementById('modalProd').style.display='flex'; 
   }
 
@@ -177,8 +184,8 @@
     const p = store.products.find(x => x.id === id);
     document.getElementById('editProdId').value = p.id;
     document.getElementById('pNombre').value = p.name;
-    document.getElementById('pStock').value = p.stock;
     document.getElementById('pUnidades').value = p.unidades;
+    document.getElementById('pDesc').value = p.desc || "";
     document.getElementById('modalProd').style.display='flex';
   }
 
@@ -199,17 +206,18 @@
   async function guardarProducto() {
     const id = document.getElementById('editProdId').value;
     const name = document.getElementById('pNombre').value.toUpperCase();
-    const stock = parseInt(document.getElementById('pStock').value);
-    const unidades = parseInt(document.getElementById('pUnidades').value);
+    const unidades = parseInt(document.getElementById('pUnidades').value) || 0;
+    const desc = document.getElementById('pDesc').value;
     const file = document.getElementById('pFoto').files[0];
     let foto = "";
     if(file) foto = await comprimirImagen(file);
+    
     if(id) {
       const p = store.products.find(x => x.id === id);
-      p.name = name; p.stock = stock; p.unidades = unidades;
+      p.name = name; p.unidades = unidades; p.desc = desc;
       if(foto) p.foto = foto;
     } else {
-      store.products.push({id: uid(), name, stock, unidades, foto, catId: currentParentId});
+      store.products.push({id: uid(), name, unidades, desc, foto, catId: currentParentId});
     }
     cerrarModales(); save();
   }
@@ -220,7 +228,7 @@
   function respaldarWhatsApp() {
     const data = btoa(unescape(encodeURIComponent(JSON.stringify(store))));
     navigator.clipboard.writeText(data);
-    alert("Copiado para WhatsApp");
+    alert("Copiado");
   }
 
   function cargarDesdeWhatsApp() {
@@ -233,47 +241,37 @@
     }
   }
 
-  // --- EXPORTACIÓN CON FORMATO GRÁFICO ---
-  function exportarExcelEstiloGrafico() {
+  function exportarExcelV7() {
     const wb = XLSX.utils.book_new();
     const raices = store.categories.filter(c => c.parentId === null);
 
     raices.forEach(raiz => {
       let rows = [];
-      // Fila 1: Categoría Principal (Verde)
       rows.push([raiz.name, ""]); 
-      rows.push(["", ""]); // Espacio
+      rows.push(["", ""]);
 
-      // Buscar subcategorías e hijos
-      let buscarEnRama = (idPadre, nivel) => {
+      let buscarHijos = (idPadre) => {
         const subcats = store.categories.filter(c => c.parentId === idPadre);
-        
-        // Productos directos de esta categoría
         const prods = store.products.filter(p => p.catId === idPadre);
+        
         if(prods.length > 0) {
           const nombrePadre = store.categories.find(c => c.id === idPadre).name;
-          rows.push([nombrePadre, ""]); // Subtítulo verde
-          rows.push(["NOMBRE PRODUCTO", "UNIDADES"]); // Encabezado tabla
+          rows.push([nombrePadre, ""]);
+          rows.push(["NOMBRE PRODUCTO", "DESCRIPCIÓN", "UNIDADES"]);
           prods.forEach(p => {
-            rows.push([p.name, p.stock * (p.unidades || 1)]);
+            rows.push([p.name, p.desc || "", p.unidades]);
           });
-          rows.push(["", ""]); // Espacio tras tabla
+          rows.push(["", "", ""]);
         }
-
-        subcats.forEach(s => buscarEnRama(s.id, nivel + 1));
+        subcats.forEach(s => buscarHijos(s.id));
       };
 
-      buscarEnRama(raiz.id, 0);
-
+      buscarHijos(raiz.id);
       const ws = XLSX.utils.aoa_to_sheet(rows);
-      
-      // Ajuste de ancho de columnas
-      ws['!cols'] = [{wch: 40}, {wch: 15}];
-
+      ws['!cols'] = [{wch: 35}, {wch: 40}, {wch: 15}];
       XLSX.utils.book_append_sheet(wb, ws, raiz.name.substring(0,30));
     });
-
-    XLSX.writeFile(wb, "Inventario_Estilo_Manual.xlsx");
+    XLSX.writeFile(wb, "Inventario_Final.xlsx");
   }
 
   render();
