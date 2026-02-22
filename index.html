@@ -3,278 +3,234 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Inventario Pro v7</title>
+  <title>Inventario Cloud v9</title>
   <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getFirestore, collection, onSnapshot, doc, setDoc, deleteDoc, query } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    // Configuración que me pasaste
+    const firebaseConfig = {
+      apiKey: "AIzaSyDRKyPBXDcYwoiPU1dPLde58a1-_Z_kvYI",
+      authDomain: "mi-inventario-21b8b.firebaseapp.com",
+      projectId: "mi-inventario-21b8b",
+      storageBucket: "mi-inventario-21b8b.firebasestorage.app",
+      messagingSenderId: "1063315770419",
+      appId: "1:1063315770419:web:40a8dc3efe080a6382e746"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // --- VARIABLES DE ESTADO ---
+    let store = { categories: [], products: [] };
+    let currentParentId = null;
+
+    // --- SINCRONIZACIÓN EN TIEMPO REAL ---
+    // Escuchar Categorías
+    onSnapshot(collection(db, "categories"), (snapshot) => {
+      store.categories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      render();
+    });
+
+    // Escuchar Productos
+    onSnapshot(collection(db, "products"), (snapshot) => {
+      store.products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      render();
+    });
+
+    // --- FUNCIONES GLOBALIZADAS ---
+    window.entrarCat = (id) => { currentParentId = id; render(); };
+    window.subirNivel = () => {
+      const c = store.categories.find(x => x.id === currentParentId);
+      currentParentId = c ? c.parentId : null;
+      render();
+    };
+
+    window.guardarCategoria = async () => {
+      const name = document.getElementById('newCatName').value.toUpperCase();
+      if(!name) return;
+      const id = Date.now().toString(36);
+      await setDoc(doc(db, "categories", id), { name, parentId: currentParentId });
+      cerrarModales();
+    };
+
+    window.guardarProducto = async () => {
+      const id = document.getElementById('editProdId').value || Date.now().toString(36);
+      const name = document.getElementById('pNombre').value.toUpperCase();
+      const unidades = parseInt(document.getElementById('pUnidades').value) || 0;
+      const desc = document.getElementById('pDesc').value.toUpperCase();
+      const file = document.getElementById('pFoto').files[0];
+      
+      let pData = { name, unidades, desc, catId: currentParentId };
+      
+      if(file) {
+        pData.foto = await comprimirImagen(file);
+      } else if (document.getElementById('editProdId').value) {
+        const exist = store.products.find(p => p.id === id);
+        if(exist.foto) pData.foto = exist.foto;
+      }
+
+      await setDoc(doc(db, "products", id), pData);
+      cerrarModales();
+    };
+
+    window.borrarCat = async (id) => { if(confirm("¿Borrar categoría?")) await deleteDoc(doc(db, "categories", id)); };
+    window.borrarProd = async (id) => { if(confirm("¿Borrar producto?")) await deleteDoc(doc(db, "products", id)); };
+
+    // --- RENDERIZADO ---
+    function render() {
+      const catList = document.getElementById('catsList');
+      const prodGrid = document.getElementById('cardsGrid');
+      const title = document.getElementById('current-title');
+      
+      // Título
+      const actual = store.categories.find(c => c.id === currentParentId);
+      title.innerText = actual ? actual.name : "Inicio";
+
+      // Categorías
+      catList.innerHTML = currentParentId ? `<div class="cat-item" onclick="subirNivel()"><b>⬅ Volver</b></div>` : "";
+      store.categories.filter(c => c.parentId === currentParentId).forEach(cat => {
+        catList.innerHTML += `
+          <div class="cat-item">
+            <span onclick="entrarCat('${cat.id}')" style="flex:1">${cat.name}</span>
+            <button class="btn-del" onclick="borrarCat('${cat.id}')">🗑</button>
+          </div>`;
+      });
+
+      // Productos
+      prodGrid.innerHTML = "";
+      store.products.filter(p => p.catId === currentParentId).forEach(p => {
+        prodGrid.innerHTML += `
+          <div class="card">
+            <img src="${p.foto || 'https://via.placeholder.com/150'}">
+            <h4>${p.name}</h4>
+            <p style="font-size:11px; color:#666">${p.desc || ''}</p>
+            <div class="unidades-badge"><b>${p.unidades} UNIDADES</b></div>
+            <div style="display:flex; gap:5px; margin-top:auto;">
+              <button class="btn-edit" style="flex:1" onclick="abrirEditar('${p.id}')">✎</button>
+              <button class="btn-del" style="flex:1" onclick="borrarProd('${p.id}')">🗑</button>
+            </div>
+          </div>`;
+      });
+    }
+
+    // Funciones auxiliares
+    async function comprimirImagen(file) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (e) => {
+          const img = new Image();
+          img.src = e.target.result;
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 300; canvas.height = (img.height * 300) / img.width;
+            canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL('image/jpeg', 0.5));
+          };
+        };
+      });
+    }
+
+    window.exportarExcelV9 = () => {
+      const wb = XLSX.utils.book_new();
+      const raices = store.categories.filter(c => c.parentId === null);
+      raices.forEach(raiz => {
+        let rows = [[raiz.name], [""]];
+        const buscar = (id) => {
+          const prods = store.products.filter(p => p.catId === id);
+          if(prods.length > 0) {
+            rows.push([store.categories.find(c=>c.id===id).name]);
+            rows.push(["PRODUCTO", "DESCRIPCIÓN", "UNIDADES"]);
+            prods.forEach(p => rows.push([p.name, p.desc || "", p.unidades]));
+            rows.push([""]);
+          }
+          store.categories.filter(c=>c.parentId===id).forEach(s => buscar(s.id));
+        };
+        buscar(raiz.id);
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        XLSX.utils.book_append_sheet(wb, ws, raiz.name.substring(0,30));
+      });
+      XLSX.writeFile(wb, "Inventario_Sincronizado.xlsx");
+    };
+
+    window.abrirEditar = (id) => {
+      const p = store.products.find(x => x.id === id);
+      document.getElementById('editProdId').value = p.id;
+      document.getElementById('pNombre').value = p.name;
+      document.getElementById('pUnidades').value = p.unidades;
+      document.getElementById('pDesc').value = p.desc || "";
+      document.getElementById('modalProd').style.display='flex';
+    };
+  </script>
+
   <style>
-    :root{ --green:#2ecc71; --green-dark:#27ae60; --bg:#f4f7f6; --card:#ffffff; --radius:12px; }
-    *{box-sizing:border-box}
-    body{margin:0;font-family:sans-serif;background:var(--bg); display:flex; flex-direction:column; height:100vh;}
-    header{background:var(--green); color:white; padding:15px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 2px 10px rgba(0,0,0,0.1);}
-    main{display:flex; flex:1; overflow:hidden; gap:15px; padding:15px;}
-    .sidebar{width:300px; background:white; border-radius:var(--radius); display:flex; flex-direction:column; padding:15px; box-shadow:0 2px 5px rgba(0,0,0,0.1);}
-    .content{flex:1; display:flex; flex-direction:column; gap:15px;}
-    .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:15px; overflow-y:auto;}
-    .cat-item{padding:12px; border:1px solid #eee; margin-bottom:8px; border-radius:8px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; background:#fff;}
-    .cat-item:hover{border-color:var(--green); background:#f9fff9;}
-    .card{background:white; padding:12px; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.1); display:flex; flex-direction:column; gap:8px;}
-    .card img{width:100%; height:130px; object-fit:cover; border-radius:8px; background:#f0f0f0;}
-    .modal{position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; align-items:center; justify-content:center; z-index:100;}
-    .modal-content{background:white; padding:25px; border-radius:15px; width:95%; max-width:450px; box-shadow:0 10px 25px rgba(0,0,0,0.2);}
-    .btn{padding:10px 15px; border-radius:8px; border:none; cursor:pointer; font-weight:bold; transition:0.2s;}
-    .btn-main{background:var(--green); color:white;}
-    .btn-alt{background:#34495e; color:white;}
-    .btn-edit{background:#f1c40f; color:white; font-size:11px;}
-    .btn-del{background:#e74c3c; color:white; font-size:11px;}
-    input, textarea{ width:100%; padding:12px; margin-bottom:12px; border:1px solid #ddd; border-radius:8px; font-family: sans-serif; }
-    .search-box { padding:10px; border-radius:8px; border:1px solid #ddd; width:100%; max-width:250px; }
+    :root{ --green:#2ecc71; --bg:#f4f7f6; --radius:12px; }
+    body{ margin:0; font-family:sans-serif; background:var(--bg); display:flex; flex-direction:column; height:100vh; }
+    header{ background:var(--green); color:white; padding:15px; display:flex; justify-content:space-between; align-items:center; }
+    main{ display:flex; flex:1; overflow:hidden; padding:15px; gap:15px; }
+    .sidebar{ width:280px; background:white; border-radius:var(--radius); padding:15px; display:flex; flex-direction:column; box-shadow:0 2px 5px rgba(0,0,0,0.1); }
+    .content{ flex:1; display:flex; flex-direction:column; gap:15px; overflow-y:auto; }
+    .grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:15px; }
+    .cat-item{ padding:10px; border:1px solid #eee; border-radius:8px; margin-bottom:8px; cursor:pointer; display:flex; align-items:center; justify-content:space-between; background:white; }
+    .card{ background:white; padding:10px; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.05); display:flex; flex-direction:column; gap:5px; }
+    .card img{ width:100%; height:120px; object-fit:cover; border-radius:8px; }
+    .unidades-badge{ background:#f0fcf4; padding:5px; border-radius:5px; text-align:center; font-size:13px; }
+    .modal{ position:fixed; inset:0; background:rgba(0,0,0,0.5); display:none; align-items:center; justify-content:center; z-index:100; }
+    .modal-content{ background:white; padding:20px; border-radius:15px; width:90%; max-width:400px; }
+    .btn-main{ background:var(--green); color:white; border:none; padding:10px; border-radius:8px; cursor:pointer; font-weight:bold; }
+    .btn-del{ background:#e74c3c; color:white; border:none; padding:5px 8px; border-radius:5px; cursor:pointer; }
+    .btn-edit{ background:#f1c40f; color:white; border:none; padding:5px 8px; border-radius:5px; cursor:pointer; }
+    input, textarea{ width:100%; padding:10px; margin-bottom:10px; border:1px solid #ddd; border-radius:8px; box-sizing:border-box; }
   </style>
 </head>
 <body>
 
 <header>
-  <div style="display:flex; align-items:center; gap:10px;">
-    <strong>Inventario Pro v7</strong>
-  </div>
-  <div style="display:flex; gap:8px;">
-    <button class="btn btn-alt" onclick="exportarExcelV7()">📊 Excel Pro</button>
-    <button class="btn btn-alt" onclick="respaldarWhatsApp()">📲 Copiar</button>
-    <button class="btn btn-alt" onclick="cargarDesdeWhatsApp()">📥 Cargar</button>
-  </div>
+  <strong>📦 Inventario Cloud v9</strong>
+  <button class="btn-main" style="background:#34495e" onclick="exportarExcelV9()">📊 Descargar Excel</button>
 </header>
 
 <main>
   <aside class="sidebar">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-      <h3 style="margin:0; color:#34495e;">Categorías</h3>
-      <button class="btn btn-main" onclick="abrirModalCat()">+</button>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h3 style="margin:0">Categorías</h3>
+      <button class="btn-main" onclick="document.getElementById('modalCat').style.display='flex'">+</button>
     </div>
-    <div id="catsList" style="flex:1; overflow-y:auto; padding-right:5px;"></div>
+    <div id="catsList" style="overflow-y:auto"></div>
   </aside>
 
   <section class="content">
-    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-      <h2 id="current-title" style="margin:0; color:#2c3e50;">Inicio</h2>
-      <div style="display:flex; gap:10px; flex:1; justify-content:flex-end; align-items:center;">
-        <input type="text" id="busqueda" class="search-box" placeholder="🔍 Buscar..." oninput="renderProds()">
-        <button class="btn btn-main" onclick="abrirModalProd()">+ Producto</button>
-      </div>
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h2 id="current-title" style="margin:0">Inicio</h2>
+      <button class="btn-main" onclick="document.getElementById('modalProd').style.display='flex'; document.getElementById('editProdId').value='';">+ Producto</button>
     </div>
     <div id="cardsGrid" class="grid"></div>
   </section>
 </main>
 
 <div id="modalCat" class="modal"><div class="modal-content">
-  <h3 id="catModalTitle">Nueva Categoría</h3>
-  <input type="text" id="newCatName" placeholder="Ej: ORGANIZADORES">
-  <div style="display:flex; gap:10px; justify-content:flex-end;">
-    <button class="btn" onclick="cerrarModales()">Cancelar</button>
-    <button class="btn btn-main" onclick="guardarCategoria()">Guardar</button>
-  </div>
+  <h3>Nueva Categoría</h3>
+  <input type="text" id="newCatName" placeholder="NOMBRE DE CATEGORÍA">
+  <button class="btn-main" style="width:100%" onclick="guardarCategoria()">Guardar</button>
+  <button onclick="cerrarModales()" style="width:100%; background:none; border:none; margin-top:10px; cursor:pointer">Cancelar</button>
 </div></div>
 
 <div id="modalProd" class="modal"><div class="modal-content">
-  <h3 id="prodModalTitle">Datos del Producto</h3>
+  <h3>Datos del Producto</h3>
   <input type="hidden" id="editProdId">
-  
-  <label style="font-size:12px; color:gray;">Nombre</label>
-  <input type="text" id="pNombre" placeholder="Ej: 1. PULIDO">
-  
-  <label style="font-size:12px; color:gray;">Unidades</label>
-  <input type="number" id="pUnidades" value="1">
-
-  <label style="font-size:12px; color:gray;">Descripción</label>
-  <textarea id="pDesc" rows="3" placeholder="Detalles del producto..."></textarea>
-
-  <label style="font-size:12px; color:gray;">Imagen</label>
+  <input type="text" id="pNombre" placeholder="NOMBRE">
+  <input type="number" id="pUnidades" placeholder="UNIDADES" value="1">
+  <textarea id="pDesc" placeholder="DESCRIPCIÓN"></textarea>
   <input type="file" id="pFoto" accept="image/*">
-  
-  <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:10px;">
-    <button class="btn" onclick="cerrarModales()">Cancelar</button>
-    <button class="btn btn-main" onclick="guardarProducto()">Guardar</button>
-  </div>
+  <button class="btn-main" style="width:100%" onclick="guardarProducto()">Guardar Producto</button>
+  <button onclick="cerrarModales()" style="width:100%; background:none; border:none; margin-top:10px; cursor:pointer">Cancelar</button>
 </div></div>
 
 <script>
-  let store = JSON.parse(localStorage.getItem('inv_v7')) || { categories: [], products: [] };
-  let currentParentId = null;
-  const uid = () => Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
-
-  function save() { localStorage.setItem('inv_v7', JSON.stringify(store)); render(); }
-
-  async function comprimirImagen(file) {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = (e) => {
-        const img = new Image();
-        img.src = e.target.result;
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 400;
-          const scale = MAX_WIDTH / img.width;
-          canvas.width = MAX_WIDTH;
-          canvas.height = img.height * scale;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL('image/jpeg', 0.6));
-        };
-      };
-    });
-  }
-
-  function render() {
-    renderCats();
-    renderProds();
-    const actual = store.categories.find(c => c.id === currentParentId);
-    document.getElementById('current-title').innerText = actual ? actual.name : "Inicio";
-  }
-
-  function renderCats() {
-    const list = document.getElementById('catsList');
-    list.innerHTML = currentParentId ? `<div class="cat-item" onclick="subirNivel()" style="background:#eee;"><b>⬅ Volver</b></div>` : "";
-    store.categories.filter(c => c.parentId === currentParentId).forEach(cat => {
-      list.innerHTML += `
-        <div class="cat-item">
-          <span onclick="entrarCat('${cat.id}')" style="flex:1; font-weight:500;">${cat.name}</span>
-          <button class="btn-edit" onclick="editarCat('${cat.id}')" style="margin-right:5px;">✎</button>
-          <button class="btn-del" onclick="borrarCat('${cat.id}')">🗑</button>
-        </div>`;
-    });
-  }
-
-  function renderProds() {
-    const grid = document.getElementById('cardsGrid');
-    const term = document.getElementById('busqueda').value.toLowerCase();
-    grid.innerHTML = "";
-    const prods = store.products.filter(p => (term ? true : p.catId === currentParentId) && p.name.toLowerCase().includes(term));
-    prods.forEach(p => {
-      grid.innerHTML += `
-        <div class="card">
-          <img src="${p.foto || 'https://via.placeholder.com/150'}">
-          <h4 style="margin:5px 0;">${p.name}</h4>
-          <p style="font-size:11px; color:#666; margin:0;">${p.desc || ''}</p>
-          <div style="font-size:14px; color:#333; background:#f0fcf4; padding:8px; border-radius:5px; text-align:center; margin-top:5px;">
-            <b>${p.unidades} UNIDADES</b>
-          </div>
-          <div style="display:flex; gap:5px; margin-top:auto;">
-            <button class="btn btn-edit" style="flex:1" onclick="abrirEditarProd('${p.id}')">Editar</button>
-            <button class="btn btn-del" style="flex:1" onclick="borrarProd('${p.id}')">Borrar</button>
-          </div>
-        </div>`;
-    });
-  }
-
-  function entrarCat(id) { currentParentId = id; render(); }
-  function subirNivel() { 
-    const c = store.categories.find(x => x.id === currentParentId);
-    currentParentId = c ? c.parentId : null;
-    render();
-  }
-
-  function abrirModalCat() { document.getElementById('modalCat').style.display='flex'; }
-  function abrirModalProd() { 
-    document.getElementById('editProdId').value = "";
-    document.getElementById('pNombre').value = "";
-    document.getElementById('pUnidades').value = "1";
-    document.getElementById('pDesc').value = "";
-    document.getElementById('modalProd').style.display='flex'; 
-  }
-
-  function abrirEditarProd(id) {
-    const p = store.products.find(x => x.id === id);
-    document.getElementById('editProdId').value = p.id;
-    document.getElementById('pNombre').value = p.name;
-    document.getElementById('pUnidades').value = p.unidades;
-    document.getElementById('pDesc').value = p.desc || "";
-    document.getElementById('modalProd').style.display='flex';
-  }
-
-  function cerrarModales() { document.querySelectorAll('.modal').forEach(m=>m.style.display='none'); }
-
-  function guardarCategoria() {
-    const name = document.getElementById('newCatName').value.toUpperCase();
-    if(name) store.categories.push({id: uid(), name, parentId: currentParentId});
-    cerrarModales(); save();
-  }
-
-  function editarCat(id) {
-    const cat = store.categories.find(c => c.id === id);
-    const nuevo = prompt("Editar nombre:", cat.name);
-    if(nuevo) { cat.name = nuevo.toUpperCase(); save(); }
-  }
-
-  async function guardarProducto() {
-    const id = document.getElementById('editProdId').value;
-    const name = document.getElementById('pNombre').value.toUpperCase();
-    const unidades = parseInt(document.getElementById('pUnidades').value) || 0;
-    const desc = document.getElementById('pDesc').value;
-    const file = document.getElementById('pFoto').files[0];
-    let foto = "";
-    if(file) foto = await comprimirImagen(file);
-    
-    if(id) {
-      const p = store.products.find(x => x.id === id);
-      p.name = name; p.unidades = unidades; p.desc = desc;
-      if(foto) p.foto = foto;
-    } else {
-      store.products.push({id: uid(), name, unidades, desc, foto, catId: currentParentId});
-    }
-    cerrarModales(); save();
-  }
-
-  function borrarCat(id) { if(confirm("¿Borrar?")) { store.categories = store.categories.filter(c=>c.id!==id); save(); } }
-  function borrarProd(id) { if(confirm("¿Borrar?")) { store.products = store.products.filter(p=>p.id!==id); save(); } }
-
-  function respaldarWhatsApp() {
-    const data = btoa(unescape(encodeURIComponent(JSON.stringify(store))));
-    navigator.clipboard.writeText(data);
-    alert("Copiado");
-  }
-
-  function cargarDesdeWhatsApp() {
-    const code = prompt("Pega el código:");
-    if(code) {
-      try {
-        store = JSON.parse(decodeURIComponent(escape(atob(code))));
-        save(); location.reload();
-      } catch(e) { alert("Error"); }
-    }
-  }
-
-  function exportarExcelV7() {
-    const wb = XLSX.utils.book_new();
-    const raices = store.categories.filter(c => c.parentId === null);
-
-    raices.forEach(raiz => {
-      let rows = [];
-      rows.push([raiz.name, ""]); 
-      rows.push(["", ""]);
-
-      let buscarHijos = (idPadre) => {
-        const subcats = store.categories.filter(c => c.parentId === idPadre);
-        const prods = store.products.filter(p => p.catId === idPadre);
-        
-        if(prods.length > 0) {
-          const nombrePadre = store.categories.find(c => c.id === idPadre).name;
-          rows.push([nombrePadre, ""]);
-          rows.push(["NOMBRE PRODUCTO", "DESCRIPCIÓN", "UNIDADES"]);
-          prods.forEach(p => {
-            rows.push([p.name, p.desc || "", p.unidades]);
-          });
-          rows.push(["", "", ""]);
-        }
-        subcats.forEach(s => buscarHijos(s.id));
-      };
-
-      buscarHijos(raiz.id);
-      const ws = XLSX.utils.aoa_to_sheet(rows);
-      ws['!cols'] = [{wch: 35}, {wch: 40}, {wch: 15}];
-      XLSX.utils.book_append_sheet(wb, ws, raiz.name.substring(0,30));
-    });
-    XLSX.writeFile(wb, "Inventario_Final.xlsx");
-  }
-
-  render();
+  function cerrarModales() { document.querySelectorAll('.modal').forEach(m => m.style.display='none'); }
 </script>
+
 </body>
 </html>
