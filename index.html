@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Inventario Pro v11</title>
+  <title>Inventario Pro v11.2</title>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getFirestore, collection, onSnapshot, doc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
@@ -71,6 +71,16 @@
       cerrarModales();
     };
 
+    // FUNCIÓN PARA VER DETALLE
+    window.verDetalle = (id) => {
+      const p = store.products.find(x => x.id === id);
+      document.getElementById('detImg').src = p.foto || 'https://via.placeholder.com/300';
+      document.getElementById('detNombre').innerText = p.name;
+      document.getElementById('detDesc').innerText = p.desc || "Sin descripción";
+      document.getElementById('detQty').innerText = p.unidades + " UNIDADES";
+      document.getElementById('modalDetalle').style.display = 'flex';
+    };
+
     window.borrarCat = async (id) => { if(confirm("¿Borrar?")) await deleteDoc(doc(db, "categories", id)); };
     window.borrarProd = async (id) => { if(confirm("¿Borrar?")) await deleteDoc(doc(db, "products", id)); };
     window.toggleSidebar = () => { document.getElementById('sidebar').classList.toggle('active'); };
@@ -98,10 +108,12 @@
       filtered.forEach(p => {
         prodGrid.innerHTML += `
           <div class="prod-row">
-            <img src="${p.foto || 'https://via.placeholder.com/50'}" class="prod-img">
-            <div class="prod-info">
-              <div class="prod-name">${p.name}</div>
-              <div class="prod-desc">${p.desc || ''}</div>
+            <div style="display:flex; align-items:center; flex:1; gap:10px;" onclick="verDetalle('${p.id}')">
+                <img src="${p.foto || 'https://via.placeholder.com/50'}" class="prod-img">
+                <div class="prod-info">
+                  <div class="prod-name">${p.name}</div>
+                  <div class="prod-desc">${p.desc || ''}</div>
+                </div>
             </div>
             <div class="prod-qty"><b>${p.unidades}</b><br><small>UN</small></div>
             <div class="prod-btns">
@@ -116,8 +128,8 @@
       return new Promise((res) => {
         const r = new FileReader(); r.readAsDataURL(file);
         r.onload = (e) => { const i = new Image(); i.src = e.target.result; i.onload = () => {
-          const c = document.createElement('canvas'); c.width = 300; c.height = (i.height * 300) / i.width;
-          c.getContext('2d').drawImage(i, 0, 0, c.width, c.height); res(c.toDataURL('image/jpeg', 0.5));
+          const c = document.createElement('canvas'); c.width = 400; c.height = (i.height * 400) / i.width;
+          c.getContext('2d').drawImage(i, 0, 0, c.width, c.height); res(c.toDataURL('image/jpeg', 0.6));
         };};
       });
     }
@@ -143,36 +155,36 @@
     body{ margin:0; font-family:sans-serif; background:var(--bg); display:flex; flex-direction:column; height:100vh; overflow:hidden;}
     header{ background:var(--green); color:white; padding:8px 15px; display:flex; flex-direction:column; gap:8px; z-index:10; }
     .top-bar{ display:flex; justify-content:space-between; align-items:center; }
-    .search-box{ width:100%; position:relative; }
     .search-box input{ width:100%; padding:8px 12px; border-radius:20px; border:none; outline:none; font-size:14px; box-sizing:border-box; }
     
     main{ display:flex; flex:1; overflow:hidden; position:relative; }
     .sidebar{ width:260px; background:white; padding:10px; display:flex; flex-direction:column; box-shadow:2px 0 5px rgba(0,0,0,0.05); transition: 0.3s; z-index:5; }
     .content{ flex:1; display:flex; flex-direction:column; padding:10px; overflow-y:auto; }
     
-    @media (max-width: 768px) {
-      .sidebar { position: absolute; left: -260px; height: 100%; }
-      .sidebar.active { left: 0; }
-    }
+    @media (max-width: 768px) { .sidebar { position: absolute; left: -260px; height: 100%; } .sidebar.active { left: 0; } }
 
     .cat-item{ padding:10px; border-bottom:1px solid #eee; display:flex; align-items:center; cursor:pointer; font-size:14px; }
-    
-    /* DISEÑO COMPACTO DE FILAS */
-    .prod-row{ background:white; display:flex; align-items:center; padding:8px; border-radius:8px; margin-bottom:6px; gap:10px; border:1px solid #eee; }
+    .prod-row{ background:white; display:flex; align-items:center; padding:8px; border-radius:8px; margin-bottom:6px; gap:10px; border:1px solid #eee; cursor:pointer; }
     .prod-img{ width:45px; height:45px; border-radius:6px; object-fit:cover; background:#eee; }
     .prod-info{ flex:1; overflow:hidden; }
-    .prod-name{ font-weight:bold; font-size:13px; color:#333; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .prod-name{ font-weight:bold; font-size:13px; color:#333; }
     .prod-desc{ font-size:11px; color:#777; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .prod-qty{ text-align:center; min-width:40px; line-height:1; color:var(--green); }
-    .prod-qty b{ font-size:16px; }
+    .prod-qty{ text-align:center; min-width:40px; color:var(--green); }
     .prod-btns{ display:flex; flex-direction:column; gap:4px; }
 
-    .btn-edit-mini{ background:#fdcb6e; border:none; color:white; padding:4px 8px; border-radius:4px; cursor:pointer; }
-    .btn-del-mini{ background:#ff7675; border:none; color:white; padding:4px 8px; border-radius:4px; cursor:pointer; }
-    .btn-main{ background:var(--green); color:white; border:none; padding:8px 15px; border-radius:8px; font-weight:bold; cursor:pointer; }
+    .btn-edit-mini{ background:#fdcb6e; border:none; color:white; padding:4px 8px; border-radius:4px; }
+    .btn-del-mini{ background:#ff7675; border:none; color:white; padding:4px 8px; border-radius:4px; }
+    .btn-main{ background:var(--green); color:white; border:none; padding:8px 15px; border-radius:8px; font-weight:bold; }
     
-    .modal{ position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; align-items:center; justify-content:center; z-index:100; }
-    .modal-content{ background:white; padding:20px; border-radius:15px; width:90%; max-width:400px; }
+    .modal{ position:fixed; inset:0; background:rgba(0,0,0,0.7); display:none; align-items:center; justify-content:center; z-index:100; padding:15px; }
+    .modal-content{ background:white; padding:20px; border-radius:15px; width:100%; max-width:400px; box-sizing:border-box; max-height: 90vh; overflow-y: auto; }
+    
+    /* ESTILO MODAL DETALLE */
+    #detImg { width: 100%; border-radius: 10px; margin-bottom: 15px; max-height: 300px; object-fit: contain; background: #f9f9f9; }
+    #detNombre { margin: 0; font-size: 1.4rem; color: #333; }
+    #detQty { display: inline-block; background: #e8f5e9; color: #2e7d32; padding: 5px 10px; border-radius: 5px; font-weight: bold; margin: 10px 0; }
+    #detDesc { color: #666; line-height: 1.4; font-size: 15px; }
+
     input[type="text"], input[type="number"], textarea{ width:100%; padding:10px; margin-bottom:10px; border:1px solid #ddd; border-radius:8px; box-sizing:border-box; }
   </style>
 </head>
@@ -182,7 +194,7 @@
   <div class="top-bar">
     <div style="display:flex; align-items:center; gap:8px;">
       <button onclick="toggleSidebar()" style="background:none; border:1px solid white; color:white; border-radius:5px; padding:4px 8px;">☰</button>
-      <strong>Inventario</strong>
+      <strong>Inventario Pro</strong>
     </div>
     <button id="btnSync" class="btn-main" style="background:#34495e; font-size:12px; padding:5px 10px;" onclick="sincronizarDrive()">🔄 Drive</button>
   </div>
@@ -208,6 +220,16 @@
     <div id="cardsGrid"></div>
   </section>
 </main>
+
+<div id="modalDetalle" class="modal" onclick="if(event.target == this) cerrarModales()">
+    <div class="modal-content">
+        <img id="detImg" src="">
+        <h2 id="detNombre"></h2>
+        <div id="detQty"></div>
+        <p id="detDesc"></p>
+        <button class="btn-main" style="width:100%; margin-top:10px;" onclick="cerrarModales()">Cerrar</button>
+    </div>
+</div>
 
 <div id="modalCat" class="modal"><div class="modal-content">
   <h3>📁 Categoría</h3>
